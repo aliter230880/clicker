@@ -257,11 +257,12 @@ function MiningScreen() {
   const [mTab, setMTab] = useState<MiningTab>("owned");
   const [connected, setConnected] = useState(false);
 
+  // Real data from miners-config.php
   const miners = [
-    { name: "Basic Miner",    price: "500 Gold",    gems: "10 💎/hr",   id: 0 },
-    { name: "Advanced Miner", price: "2,000 Gold",  gems: "50 💎/hr",   id: 1 },
-    { name: "Elite Miner",    price: "5,000 Gold",  gems: "150 💎/hr",  id: 2 },
-    { name: "Pro Miner",      price: "15,000 Gold", gems: "500 💎/hr",  id: 3 },
+    { name: "Basic Miner",    tokenId: 4, gemsDay: "30,000", gemsHr: "1,250",  id: 0 },
+    { name: "Advanced Miner", tokenId: 5, gemsDay: "70,000", gemsHr: "2,917",  id: 1 },
+    { name: "Elite Miner",    tokenId: 6, gemsDay: "150,000", gemsHr: "6,250", id: 2 },
+    { name: "Pro Miner",      tokenId: 7, gemsDay: "350,000", gemsHr: "14,583",id: 3 },
   ];
 
   return (
@@ -315,12 +316,16 @@ function MiningScreen() {
           <div className="flex flex-col gap-2.5">
             {miners.map(m => (
               <Panel key={m.id} py="py-3 px-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-white font-bold text-sm">{m.name}</p>
-                    <p className="text-cyan-400 text-xs mt-0.5">{m.gems}</p>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="text-white font-bold text-sm">{m.name}</p>
+                      <span className="text-[10px] text-slate-500 font-mono">#{m.tokenId}</span>
+                    </div>
+                    <p className="text-cyan-400 text-xs mt-0.5">{m.gemsDay} 💎/день</p>
+                    <p className="text-slate-500 text-[10px]">{m.gemsHr} 💎/час</p>
                   </div>
-                  <Btn sm>{m.price}</Btn>
+                  <Btn sm>Купить LUX</Btn>
                 </div>
               </Panel>
             ))}
@@ -339,12 +344,12 @@ function TasksScreen() {
 
   return (
     <div className="flex flex-col h-full pb-24 p-3 pt-4 gap-3 overflow-auto">
-      {/* reward */}
+      {/* reward — real: 5000 gems / 3h from miners-config.php */}
       <Panel py="py-4 px-4">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-white font-semibold text-sm leading-tight">Reward:</p>
-            <div className="flex items-center gap-1.5 mt-0.5">
+            <p className="text-gray-400 text-[10px] font-semibold uppercase tracking-wider mb-0.5">Daily Reward · каждые 3 часа</p>
+            <div className="flex items-center gap-1.5">
               <span className="text-white font-black text-2xl">5 000</span>
               <span style={{ fontSize: 22, filter: "drop-shadow(0 0 5px #9060ff)" }}>💎</span>
             </div>
