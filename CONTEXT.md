@@ -127,7 +127,8 @@
 
   mockup/                          # Интерактивный UI прототип (React/TSX)
   ├── GameUI.tsx                   # Полный макет игры (Auth, Home, Mining, Tasks, Profile)
-  └── ContractsAnalysis.tsx        # Визуализация смарт-контрактов
+  ├── ContractsAnalysis.tsx        # Визуализация смарт-контрактов
+  └── LuxUI.tsx                    # Люкс-редизайн (glassmorphism, neon, canvas crystal keying)
   ```
 
   ---
@@ -447,4 +448,49 @@
 
   *Документ сгенерирован Replit Agent · Апрель 2026*  
   *Репозиторий: https://github.com/aliter230880/clicker*
+
+  ---
+
+  ## 9. LUXURY WEB-STACK РЕДИЗАЙН (LuxUI.tsx)
+
+    > Создан: апрель 2026  
+    > Файл: `artifacts/mockup-sandbox/src/components/mockups/game/LuxUI.tsx`  
+    > Превью: Vite mockup-sandbox (canvas iframe на канвасе, shape id: lux-ui)
+
+    ### Стек и визуальная система:
+    - **React + TypeScript** — полностью без внешних UI-библиотек
+    - **Glassmorphism** — `backdrop-filter: blur(24-32px) saturate(180-200%)` на всех панелях
+    - **Анимированные блобы** — три жидкостных радиальных градиента (cyan/purple/gold), CSS keyframes
+    - **Сетка-хейз** — 60px grid overlay поверх фона для глубины
+    - **Neon glow** — `text-shadow` и `box-shadow` с `rgba(0,212,255,...)` и `rgba(124,58,237,...)`
+    - **Shimmer-текст** — анимированный градиент на балансе gems и кнопке Daily Reward
+
+    ### Кристалл (canvas luma-key):
+    - Оригинальный анимированный кристалл из игры загружается как `crystal.webm`
+    - Поскольку webm не содержит альфа-канала, применяется **попиксельное удаление фона**:
+      - Скрытый `<video>` + видимый `<canvas>` рисуются через `requestAnimationFrame`
+      - Для каждого пикселя: `lum = 0.299R + 0.587G + 0.114B`
+      - `lum < 20` → alpha = 0 (прозрачно)
+      - `lum 20–55` → плавное затухание (мягкий край)
+      - `lum > 55` → оригинальный пиксель кристалла
+    - Результат: кристалл парит без квадратного фона
+
+    ### Экраны (4 таба):
+    | Таб | Содержимое |
+    |---|---|
+    | **Home** | Счётчик gems, тап по кристаллу (+1 fly-text), кольца-орбиты |
+    | **Mining** | Кошелёк (connect/disconnect), shop NFT-майнеров #4–7, owned список |
+    | **Tasks** | Daily Reward 5000 gems (3ч cooldown), реферальная система |
+    | **Profile** | Обмен 1000 gems → 1 Gold, Telegram профиль, статистика |
+
+    ### Цветовая палитра:
+    | Цвет | HEX | Применение |
+    |---|---|---|
+    | Нео-голубой | `#00d4ff` | Основной акцент, кнопки, активные табы |
+    | Фиолетовый | `#7c3aed → #a855f7` | Градиенты, блобы |
+    | Shimmer-золото | `#ffd700 / #c9a227` | Daily Reward, score |
+    | Розовый неон | `#ff4cf2` | Pro Miner (tokenId 7) |
+
+    ### Ресурсы (public/):
+    - `crystal.webm` — анимированный кристалл из реального геймплея (7.1 MB)
   
