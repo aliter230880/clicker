@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en-us">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>AliTerra Clicker</title>
+    <link rel="shortcut icon" href="TemplateData/favicon.ico" />
+    <link rel="stylesheet" href="TemplateData/style.css" />
+  </head>
+  <body>
+    <div id="unity-container" class="unity-desktop">
+      <canvas id="unity-canvas"></canvas>
+      <div id="unity-loading-panel" style="display: block">
+        <video id="unity-loading-video" autoplay muted loop>
+          <source src="TemplateData/LoadingBackground.mp4" type="video/mp4" />
+        </video>
+        <div id="unity-loading-bar">
+          <div id="unity-progress-bar-empty">
+            <div id="unity-progress-bar-full"></div>
+          </div>
+        </div>
+      </div>
+      <div id="unity-warning"></div>
+      <div id="unity-footer">
+        <div id="unity-logo-title-footer"></div>
+        <div id="unity-build-title">AliTerra_Clicker</div>
+      </div>
+    </div>
+    <div id="tg-auth" style="display: none">
+      <div
+        class="tg-auth"
+        style="
+          position: fixed;
+          width: 100vw;
+          height: 100vh;
+          top: 0;
+          left: 0;
+          z-index: 101;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          background-color: #262626;
+        "
+      >
+        <div
+          class="tg-auth__popup"
+          style="
+            background-color: #0a0a0a;
+            border: 1px solid #262626;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            border-radius: 20px;
+            padding: 24px;
+            color: #fff;
+          "
+        >
+          <h3 style="margin: 0 0 15px 0">Telegram Authorization</h3>
+          <script
+            src="https://telegram.org/js/telegram-widget.js?22"
+            async
+            data-telegram-login="LUX_Clicker_bot"
+            data-size="large"
+            data-userpic="false"
+            data-onauth="onTelegramAuth(user)"
+            data-request-access="write"
+          ></script>
+        </div>
+      </div>
+    </div>
+    <script src="https://telegram.org/js/telegram-web-app.js?56"></script>
+    <script>
+      var canvas = document.querySelector("#unity-canvas");
+
+      // Shows a temporary message banner/ribbon for a few seconds, or
+      // a permanent error message on top of the canvas if type=='error'.
+      // If type=='warning', a yellow highlight color is used.
+      // Modify or remove this function to customize the visually presented
+      // way that non-critical warnings and error messages are presented to the
+      // user.
+      function unityShowBanner(msg, type) {
+        var warningBanner = document.querySelector("#unity-warning");
+        function updateBannerVisibility() {
+          warningBanner.style.display = warningBanner.children.length
+            ? "block"
+            : "none";
+        }
+        var div = document.createElement("div");
+        div.innerHTML = msg;
+        warningBanner.appendChild(div);
+        if (type == "error") div.style = "background: red; padding: 10px;";
+        else {
+          if (type == "warning")
+            div.style = "background: yellow; padding: 10px;";
+          setTimeout(function () {
+            warningBanner.removeChild(div);
+            updateBannerVisibility();
+          }, 5000);
+        }
+        updateBannerVisibility();
+      }
+
+      var buildUrl = "Build";
+      var loaderUrl = buildUrl + "/Builds.loader.js?v=7";
+      // var config = {
+      //   arguments: [],
+      //   dataUrl: buildUrl + "/Builds.data",
+      //   frameworkUrl: buildUrl + "/Builds.framework.js",
+      //   codeUrl: buildUrl + "/Builds.wasm",
+      //   streamingAssetsUrl: "StreamingAssets",
+      //   companyName: "DefaultCompany",
+      //   productName: "AliTerraProject_Clicker",
+      //   productVersion: "1.0",
+      //   showBanner: unityShowBanner,
+      // };
+      var config = {
+        dataUrl: buildUrl + "/Builds.data?v=55",
+        frameworkUrl: buildUrl + "/Builds.framework.js?v=76",
+        codeUrl: buildUrl + "/Builds.wasm?v=61",
+        streamingAssetsUrl: "StreamingAssets",
+        companyName: "DefaultCompany",
+        productName: "AliTerraProject_Clicker",
+        productVersion: "1.0",
+        // additional options can go here, see below
+      };
+
+      // By default, Unity keeps WebGL canvas render target size matched with
+      // the DOM size of the canvas element (scaled by window.devicePixelRatio)
+      // Set this to false if you want to decouple this synchronization from
+      // happening inside the engine, and you would instead like to size up
+      // the canvas DOM size and WebGL render target sizes yourself.
+      // config.matchWebGLToCanvasSize = false;
+
+      if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+        // Mobile device style: fill the whole browser client area with the game canvas:
+
+        var meta = document.createElement("meta");
+        meta.name = "viewport";
+        meta.content =
+          "width=device-width, height=device-height, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes";
+        document.getElementsByTagName("head")[0].appendChild(meta);
+        document.querySelector("#unity-container").className = "unity-mobile";
+        canvas.className = "unity-mobile";
+
+        // To lower canvas resolution on mobile devices to gain some
+        // performance, uncomment the following line:
+        // config.devicePixelRatio = 1;
+      } else {
+        // Desktop style: Render the game canvas in a window that can be maximized to fullscreen:
+      }
+
+      document.querySelector("#unity-loading-bar").style.display = "block";
+
+      var loadingPanel = document.querySelector("#unity-loading-panel");
+      loadingPanel.style.display = "block";
+
+      let myGameInstance = null;
+      const tg = window.Telegram.WebApp;
+      var tgUser = null;
+
+      var script = document.createElement("script");
+      script.src = loaderUrl;
+      script.onload = () => {
+        createUnityInstance(canvas, config, (progress) => {
+          document.querySelector("#unity-progress-bar-full").style.width =
+            100 * progress + "%";
+        })
+          .then((unityInstance) => {
+            loadingPanel.style.display = "none";
+            document.querySelector("#unity-loading-bar").style.display = "none";
+            myGameInstance = unityInstance;
+          })
+          .catch((message) => {
+            alert(message);
+          });
+      };
+
+      let params = new URLSearchParams(document.location.search);
+      let paramsArray = paramsToObject(params.entries());
+
+      if (tg.initDataUnsafe.user) {
+        onTelegramAuth(tg.initDataUnsafe.user);
+      }
+      else {
+        document.querySelector("#tg-auth").style.display = "block";
+      }
+
+      function onTelegramAuth(user) {
+        tgUser = user;
+        tgUser["isTelegramApp"] = tg.initDataUnsafe.user ? true : false;
+        tgUser["urlParams"] = paramsArray;
+        document.body.appendChild(script);
+        document.querySelector("#tg-auth").style.display = "none";
+      }
+
+      window.onbeforeunload = () => {
+        myGameInstance.SendMessage("Saver", "AddUserClicks");
+      }
+
+      function paramsToObject(entries)
+      {
+        let result = {}
+        for(const [key, value] of entries)
+        {
+          result[key] = value;
+        }
+        return result;
+      }
+    </script>
+  </body>
+</html>
