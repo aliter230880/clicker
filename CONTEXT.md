@@ -439,7 +439,65 @@ $stmt->execute([json_encode($miners), $walletAddress]);
 
 ---
 
-## 11. ИСПРАВЛЕНИЯ СДЕЛАННЫЕ В ТЕКУЩЕЙ СЕССИИ (апрель 2026)
+## 11. КОНФИГУРАЦИЯ ДЕПЛОЯ (Dev → Prod)
+
+### Хостинг
+- **Разработка:** Replit Mockup Sandbox (Vite dev сервер, mock API)
+- **Продакшн:** reg.ru PHP-хостинг — статические файлы React + PHP-бэкенд
+
+### API_BASE — переключатель окружения
+В `LuxUI.tsx` единственная точка переключения между dev и prod:
+```typescript
+// Dev  → VITE_API_BASE не задан → fallback "/__mockup/api" (Vite mock)
+// Prod → VITE_API_BASE=https://clicker.aliterra.space/api (.env.production)
+const API_BASE: string = import.meta.env.VITE_API_BASE ?? "/__mockup/api";
+```
+
+Все 4 API-вызова используют `API_BASE`:
+```typescript
+apiPost(`${API_BASE}/game-config`, ...)   // POST /api/game-config
+apiPost(`${API_BASE}/user`, ...)          // POST /api/user
+apiPost(`${API_BASE}/claim-daily`, ...)   // POST /api/claim-daily
+apiPost(`${API_BASE}/save-score`, ...)    // POST /api/save-score
+```
+
+### Env-файлы
+| Файл | Назначение | VITE_API_BASE |
+|---|---|---|
+| `.env.development` | Dev режим | не задан (fallback `/__mockup/api`) |
+| `.env.production` | Prod сборка | `https://clicker.aliterra.space/api` |
+
+### Static fallback конфига
+```typescript
+const STATIC = `${import.meta.env.BASE_URL}miners-config.json`;
+// Dev  → /__mockup/miners-config.json
+// Prod → /miners-config.json (нужен файл на хостинге)
+```
+
+### Файлы для TypeScript
+- `src/vite-env.d.ts` — декларирует `VITE_API_BASE` в типе `ImportMetaEnv`
+
+### Что нужно создать на PHP-хостинге перед деплоем
+На reg.ru (или clicker.aliterra.space) создать папку `/api/` с 4 PHP-файлами:
+| PHP-файл | Заменяет | Описание |
+|---|---|---|
+| `api/game-config.php` | `get-miners-config.php` | Возвращает конфиг игры |
+| `api/user.php` | *(нет аналога)* | Создаёт/возвращает пользователя по Telegram ID |
+| `api/save-score.php` | *(нет аналога)* | Сохраняет score в `tg_clicker` |
+| `api/claim-daily.php` | *(нет аналога)* | Начисляет дневную награду с cooldown-проверкой |
+
+### Команды для сборки и деплоя
+```bash
+# Собрать production-билд:
+cd artifacts/mockup-sandbox && npm run build
+
+# Результат в папке artifacts/mockup-sandbox/dist/
+# Загрузить содержимое dist/ на reg.ru через FTP/файловый менеджер
+```
+
+---
+
+## 12. ИСПРАВЛЕНИЯ СДЕЛАННЫЕ В ТЕКУЩЕЙ СЕССИИ (апрель 2026)
 
 ### Исправление 1 — Silent auto-login убран
 **Проблема:** `handleLogin` имел `else { setAuthed(true) }` — тихо перебрасывал на Home даже при ошибке API.
@@ -455,6 +513,15 @@ $stmt->execute([json_encode($miners), $walletAddress]);
 
 ### Исправление 4 — Серверные логи в gameApiPlugin
 **Добавлено:** `console.log` для каждого POST запроса к `/__mockup/api/*` — видны в Vite workflow логах Replit.
+
+### Исправление 5 — API_BASE для переключения Dev/Prod
+**Что сделано:**
+- Добавлена константа `const API_BASE = import.meta.env.VITE_API_BASE ?? "/__mockup/api"` в `LuxUI.tsx`
+- Все 4 хардкодных URL (`/__mockup/api/*`) заменены на `${API_BASE}/*`
+- Static fallback конфига: `${import.meta.env.BASE_URL}miners-config.json` (работает и в dev, и в prod)
+- Созданы `.env.development` (без VITE_API_BASE) и `.env.production` (с VITE_API_BASE=https://clicker.aliterra.space/api)
+- Создан `src/vite-env.d.ts` с TypeScript-типом для `VITE_API_BASE`
+**Результат:** Для смены бэкенда достаточно изменить одну переменную в `.env.production` — никакого ручного поиска URL в коде.
 
 ---
 
