@@ -519,22 +519,32 @@ export function LuxUI() {
       }
     }
 
-    // 2 — Fetch game config from real backend
-    fetch("https://clicker.aliterra.space/miners/get-miners-config.php", {
-      method: "POST",
-    })
-      .then(r => r.json())
-      .then((data: GameConfig) => {
-        setConfig({
-          exchangeGemsPerGold: Number(data.exchangeGemsPerGold) || DEFAULT_CONFIG.exchangeGemsPerGold,
-          dailyReward:         Number(data.dailyReward)         || DEFAULT_CONFIG.dailyReward,
-          dailyRewardTime:     Number(data.dailyRewardTime)     || DEFAULT_CONFIG.dailyRewardTime,
-          minersStats:         data.minersStats                 || DEFAULT_CONFIG.minersStats,
-        });
+    // 2 — Fetch game config
+    // Tries real backend first; falls back to bundled static config on CORS/404.
+    const BACKEND = "https://clicker.aliterra.space/miners/get-miners-config.php";
+    const STATIC  = "/__mockup/miners-config.json";
+
+    const parseConfig = (data: Partial<GameConfig>): GameConfig => ({
+      exchangeGemsPerGold: Number(data.exchangeGemsPerGold) || DEFAULT_CONFIG.exchangeGemsPerGold,
+      dailyReward:         Number(data.dailyReward)         || DEFAULT_CONFIG.dailyReward,
+      dailyRewardTime:     Number(data.dailyRewardTime)     || DEFAULT_CONFIG.dailyRewardTime,
+      minersStats:         data.minersStats                 || DEFAULT_CONFIG.minersStats,
+    });
+
+    fetch(BACKEND, { method: "POST" })
+      .then(r => { if (!r.ok) throw new Error("backend"); return r.json(); })
+      .then((data) => {
+        // Backend wraps in { success, data } or returns raw config
+        const payload = data?.data ?? data;
+        setConfig(parseConfig(payload));
       })
-      .catch(() => {
-        // CORS или сеть — остаёмся на дефолтных значениях
-      })
+      .catch(() =>
+        // Backend unavailable — load from bundled static config
+        fetch(STATIC)
+          .then(r => r.json())
+          .then((data) => setConfig(parseConfig(data)))
+          .catch(() => {/* stay on DEFAULT_CONFIG */})
+      )
       .finally(() => setLoading(false));
   }, []);
 
