@@ -581,5 +581,74 @@ cd artifacts/mockup-sandbox && npm run build
 
 ---
 
+---
+
+## 15. PHP БЭКЕНД ДЛЯ ДЕПЛОЯ (backend/ папка)
+
+Готовые PHP-файлы для загрузки на reg.ru / clicker.aliterra.space.
+Повторяют контракт mock API один-в-один.
+
+### Структура:
+```
+backend/
+├── db.php                # PDO подключение к MySQL (заменить DB_* константы)
+├── schema.sql            # SQL миграция — добавляет last_daily_reward в tg_clicker
+└── api/
+    ├── .htaccess         # Запрет листинга директории
+    ├── game-config.php   # POST /api/game-config
+    ├── user.php          # POST /api/user
+    ├── save-score.php    # POST /api/save-score
+    └── claim-daily.php   # POST /api/claim-daily
+```
+
+### Описание файлов:
+
+#### `backend/db.php`
+- PDO соединение с MySQL
+- Нужно заменить `DB_NAME`, `DB_USER`, `DB_PASS` на реальные данные от reg.ru
+- Подключается через `include __DIR__ . "/../db.php"` в каждом API файле
+
+#### `backend/schema.sql`
+- `CREATE TABLE IF NOT EXISTS tg_clicker` — создаёт таблицу если нет
+- `ALTER TABLE ... ADD COLUMN IF NOT EXISTS last_daily_reward DATETIME NULL` — добавляет новую колонку к существующей таблице
+- Запускать через phpMyAdmin или MySQL CLI
+
+#### `backend/api/game-config.php`
+- Без авторизации, возвращает hardcoded конфиг (идентичен `miners-config.php`)
+- Содержит те же значения что и `public/miners-config.json` в React-приложении
+
+#### `backend/api/user.php`
+- `INSERT ... ON DUPLICATE KEY UPDATE` — upsert без дублирования
+- Возвращает `{ telegram, score, lastDailyReward }` (null если не было)
+
+#### `backend/api/save-score.php`
+- `UPDATE tg_clicker SET score = ? WHERE telegram = ?`
+- Если строки нет — делает INSERT (защита от race condition)
+
+#### `backend/api/claim-daily.php`
+- Проверяет `last_daily_reward` — если `elapsed < dailyRewardTime` → cooldown
+- Cooldown ответ: `{ success: false, data: "{\"nextClaimIn\": N, \"score\": S}" }` (строка JSON внутри data — совместимо с mock API)
+- Успех: начисляет `dailyReward` к score, обновляет `last_daily_reward`
+
+### Деплой на reg.ru:
+1. Загрузить папку `backend/api/` → `/public_html/api/` на хостинге
+2. Загрузить `backend/db.php` → `/public_html/db.php` (или выше public_html)
+3. Заполнить `DB_NAME`, `DB_USER`, `DB_PASS` в `db.php`
+4. Выполнить `backend/schema.sql` через phpMyAdmin
+5. В `.env.production` установить `VITE_API_BASE=https://ваш-домен.ru/api`
+6. Собрать React-приложение: `cd artifacts/mockup-sandbox && npm run build`
+7. Загрузить содержимое `dist/` в `/public_html/` (или в подпапку для Mini App)
+
+### CORS
+Все PHP файлы содержат заголовки:
+```php
+header("Access-Control-Allow-Origin: *");
+header("Access-Control-Allow-Methods: POST, OPTIONS");
+header("Access-Control-Allow-Headers: Content-Type");
+```
+Поддерживают OPTIONS preflight — React-приложение с любого домена сможет делать запросы.
+
+---
+
 *Обновлён Replit Agent · Апрель 2026*
 *Репозиторий: https://github.com/aliter230880/clicker*
