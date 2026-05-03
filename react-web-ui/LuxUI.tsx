@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { ethers } from "ethers";
 
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
@@ -673,50 +674,108 @@ declare global {
   interface Window { ethereum?: any; }
 }
 
+// ── Social wallet singleton (ethers.Wallet in memory for this session) ─────
+// Populated by connectSocial(); cleared on disconnect.
+// Private key is kept only in memory (+ sessionStorage for tab-switch restore).
+let _socialWallet: ethers.Wallet | null = null;
+
+/** Restore a previously-created social wallet from sessionStorage on page load. */
+function restoreSocialWallet(): ethers.Wallet | null {
+  try {
+    const pk = sessionStorage.getItem("lux_social_pk");
+    if (!pk) return null;
+    return new ethers.Wallet(pk);
+  } catch { return null; }
+}
+_socialWallet = restoreSocialWallet();
+
+/** Derive a real EOA from SHA-256(seed) used as a secp256k1 private key.
+ *  ethers.Wallet performs: secp256k1.getPublicKey(pk) → keccak256 → address.
+ *  The resulting address IS a valid Polygon/Ethereum account — any MATIC/LUX
+ *  sent to it is accessible once the private key is used to sign transactions. */
+async function deriveSocialWallet(providerId: string): Promise<ethers.Wallet> {
+  const tgUser = (window as any).Telegram?.WebApp?.initDataUnsafe?.user;
+  let anonId = sessionStorage.getItem("lux_anon_id");
+  if (!anonId) { anonId = Math.random().toString(36).slice(2, 18); sessionStorage.setItem("lux_anon_id", anonId); }
+  const seed = tgUser?.id
+    ? `lux:${providerId}:tg:${tgUser.id}`
+    : `lux:${providerId}:anon:${anonId}`;
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(seed));
+  const pkHex = "0x" + Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+  // ethers.Wallet derives the correct Ethereum address via secp256k1 + keccak256
+  return new ethers.Wallet(pkHex);
+}
+
 async function requestAccounts(): Promise<string> {
   if (!window.ethereum) throw new Error("No wallet found. Install MetaMask.");
   const accounts: string[] = await window.ethereum.request({ method: "eth_requestAccounts" });
   if (!accounts.length) throw new Error("No accounts returned");
   // Switch to Polygon
   try {
-    await window.ethereum.request({
-      method: "wallet_switchEthereumChain",
-      params: [{ chainId: "0x89" }], // 137 = 0x89
-    });
+    await window.ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: "0x89" }] });
   } catch (switchErr: any) {
-    // 4902 = chain not added — add it
     if (switchErr.code === 4902) {
       await window.ethereum.request({
         method: "wallet_addEthereumChain",
         params: [{
-          chainId: "0x89",
-          chainName: "Polygon Mainnet",
+          chainId: "0x89", chainName: "Polygon Mainnet",
           nativeCurrency: { name: "MATIC", symbol: "MATIC", decimals: 18 },
-          rpcUrls: [RPC_URL],
-          blockExplorerUrls: ["https://polygonscan.com"],
+          rpcUrls: [RPC_URL], blockExplorerUrls: ["https://polygonscan.com"],
         }],
       });
     }
   }
+  // Clear any social wallet when connecting via MetaMask
+  _socialWallet = null;
+  sessionStorage.removeItem("lux_social_pk");
+  sessionStorage.removeItem("lux_social_provider");
   return accounts[0];
 }
 
+/** Send a transaction — supports both MetaMask (injected) and social wallet (ethers signer).
+ *  Social wallet: signs the raw tx locally with the stored private key, broadcasts via RPC. */
 async function sendTx(from: string, to: string, data: string): Promise<string> {
-  if (!window.ethereum) throw new Error("No wallet");
-  const txHash: string = await window.ethereum.request({
-    method: "eth_sendTransaction",
-    params: [{ from, to, data, chainId: "0x89" }],
-  });
-  // Wait for receipt
+  // ── Path 1: MetaMask / injected provider ──────────────────────────────────
+  if (window.ethereum && !_socialWallet) {
+    const txHash: string = await window.ethereum.request({
+      method: "eth_sendTransaction",
+      params: [{ from, to, data, chainId: "0x89" }],
+    });
+    return await waitForReceipt(txHash);
+  }
+
+  // ── Path 2: Social wallet — sign locally, broadcast via Thirdweb RPC ─────
+  if (_socialWallet) {
+    const provider = new ethers.JsonRpcProvider(RPC_URL, { chainId: 137, name: "polygon" });
+    const signer   = _socialWallet.connect(provider);
+    // Fetch nonce + gas price from chain
+    const [nonce, feeData] = await Promise.all([
+      provider.getTransactionCount(signer.address),
+      provider.getFeeData(),
+    ]);
+    const tx = await signer.sendTransaction({
+      to, data, nonce,
+      chainId: 137,
+      gasLimit: 350_000n,
+      maxFeePerGas:         feeData.maxFeePerGas         ?? ethers.parseUnits("50", "gwei"),
+      maxPriorityFeePerGas: feeData.maxPriorityFeePerGas ?? ethers.parseUnits("30", "gwei"),
+    });
+    return await waitForReceipt(tx.hash);
+  }
+
+  throw new Error("No wallet available for signing");
+}
+
+async function waitForReceipt(txHash: string): Promise<string> {
   for (let i = 0; i < 60; i++) {
     await new Promise(r => setTimeout(r, 2000));
     const receipt = await rpcCall("eth_getTransactionReceipt", [txHash]) as any;
     if (receipt) {
       if (receipt.status === "0x1") return txHash;
-      throw new Error("Transaction reverted");
+      throw new Error("Transaction reverted on chain");
     }
   }
-  throw new Error("Transaction timeout");
+  throw new Error("Transaction timeout (120s)");
 }
 
 /* ─── MINING ─────────────────────────────────────────────────── */
@@ -757,31 +816,23 @@ function WalletModal({ onConnect, onClose }: { onConnect: (addr: string) => void
     window.open(url, "_blank");
   }
 
-  /** Derive a deterministic Ethereum-style address from social provider + user seed.
-   *  Uses SHA-256 so the same inputs always produce the same 20-byte address.
-   *  The address never holds real ETH/NFTs on-chain; it identifies the user in the
-   *  game DB (tg_miners / tg_clicker) just like a MetaMask address would. */
+  /** Create a real secp256k1 EOA from social provider + Telegram/anon seed.
+   *  deriveSocialWallet() → ethers.Wallet → correct Ethereum address.
+   *  Private key stored in sessionStorage so the same session can sign txs.
+   *  The address is a valid Polygon account: MATIC/LUX deposited there is
+   *  spendable via the stored private key (no MetaMask needed). */
   async function connectSocial(providerId: string) {
     setConnecting(providerId);
     setError(null);
     try {
-      // Use Telegram user ID when available (Telegram Mini App context).
-      // Falls back to a stable random seed stored in sessionStorage.
-      const tgUser = (window as any).Telegram?.WebApp?.initDataUnsafe?.user;
-      let seed: string;
-      if (tgUser?.id) {
-        seed = `lux:${providerId}:tg:${tgUser.id}`;
-      } else {
-        let anonId = sessionStorage.getItem("lux_anon_id");
-        if (!anonId) { anonId = Math.random().toString(36).slice(2, 18); sessionStorage.setItem("lux_anon_id", anonId); }
-        seed = `lux:${providerId}:anon:${anonId}`;
-      }
-      const buf  = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(seed));
-      const addr = "0x" + Array.from(new Uint8Array(buf)).slice(0, 20).map(b => b.toString(16).padStart(2, "0")).join("");
-      // Brief delay so user sees the "connecting" state
-      await new Promise(r => setTimeout(r, 750));
+      const wallet = await deriveSocialWallet(providerId);
+      // Store private key for transaction signing (tab-switch safe)
+      sessionStorage.setItem("lux_social_pk",       wallet.privateKey);
+      sessionStorage.setItem("lux_social_provider", providerId);
+      _socialWallet = wallet; // keep in module-level singleton for sendTx()
+      await new Promise(r => setTimeout(r, 700)); // brief UX delay
       setConnecting(null);
-      onConnect(addr);
+      onConnect(wallet.address);
     } catch {
       setError("Connection failed. Please try again.");
       setConnecting(null);
@@ -1327,7 +1378,13 @@ function MiningScreen({
               </div>
               <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                 <button onClick={refreshMiners} title="Refresh" style={{ width: 30, height: 30, borderRadius: 8, background: "rgba(0,212,255,0.08)", border: "1px solid rgba(0,212,255,0.15)", color: "#00d4ff", cursor: "pointer", fontSize: 14 }}>↻</button>
-                <button onClick={() => { persistEoa(null); setMiners([]); setLuxBal(0); }} style={{ fontSize: 10, color: "rgba(255,80,80,0.6)", background: "none", border: "1px solid rgba(255,80,80,0.2)", borderRadius: 8, padding: "4px 10px", cursor: "pointer" }}>
+                <button onClick={() => {
+                  persistEoa(null);
+                  setMiners([]); setLuxBal(0);
+                  _socialWallet = null;
+                  sessionStorage.removeItem("lux_social_pk");
+                  sessionStorage.removeItem("lux_social_provider");
+                }} style={{ fontSize: 10, color: "rgba(255,80,80,0.6)", background: "none", border: "1px solid rgba(255,80,80,0.2)", borderRadius: 8, padding: "4px 10px", cursor: "pointer" }}>
                   Disconnect
                 </button>
               </div>
