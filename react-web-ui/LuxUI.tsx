@@ -1249,8 +1249,8 @@ function MiningScreen({
         )}
       </div>
 
-      {/* ── Live stats row ── */}
-      {wallet && activeCount > 0 && (
+      {/* ── Live stats row — only on owned tab ── */}
+      {wallet && activeCount > 0 && subTab === "owned" && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
           {[
             { label: "Active",  value: `${activeCount}`,                                                                    sub: "miners",  color: "#4ade80" },
@@ -1266,8 +1266,8 @@ function MiningScreen({
         </div>
       )}
 
-      {/* ── Sub tabs ── */}
-      <div style={{ display: "flex", borderRadius: 14, overflow: "hidden", border: "1px solid rgba(0,212,255,0.2)" }}>
+      {/* ── Sub tabs — sticky so always visible while scrolling ── */}
+      <div style={{ display: "flex", borderRadius: 14, overflow: "hidden", border: "1px solid rgba(0,212,255,0.2)", position: "sticky", top: 0, zIndex: 10, backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)" }}>
         {(["owned", "shop"] as const).map(t => (
           <button key={t} onClick={() => setSubTab(t)} style={{ flex: 1, padding: "10px 0", fontSize: 12, fontWeight: 700, cursor: "pointer", letterSpacing: "0.04em", transition: "all 0.2s", border: "none", ...(subTab === t ? { background: "linear-gradient(135deg, rgba(0,212,255,0.22), rgba(124,58,237,0.28))", color: "#00d4ff", boxShadow: "inset 0 0 20px rgba(0,212,255,0.08)", outline: "none" } : { background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.65)", outline: "none" }), ...(t === "owned" ? { borderRight: "1px solid rgba(0,212,255,0.18)" } : {}) }}>
             {t === "owned" ? "⬡ Owned NFTs" : "🛒 Marketplace"}
