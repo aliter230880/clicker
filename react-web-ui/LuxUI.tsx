@@ -752,12 +752,50 @@ function WalletModal({ onConnect, onClose }: { onConnect: (addr: string) => void
     window.open(url, "_blank");
   }
 
-  const SOCIAL = [
-    { icon: "G",  label: "Google",   color: "#ea4335" },
-    { icon: "DC", label: "Discord",  color: "#5865f2" },
-    { icon: "TG", label: "Telegram", color: "#0088cc" },
-    { icon: "X",  label: "X",        color: "#fff"    },
-    { icon: "⬡",  label: "Farcaster",color: "#8a63d2" },
+  const SOCIAL: { id: string; label: string; bg: string; svg: React.ReactNode }[] = [
+    {
+      id: "google", label: "Google", bg: "#fff",
+      svg: (
+        <svg viewBox="0 0 24 24" width="22" height="22">
+          <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+          <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+          <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+          <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+        </svg>
+      ),
+    },
+    {
+      id: "telegram", label: "Telegram", bg: "#0088cc",
+      svg: (
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8l-1.68 7.92c-.13.57-.47.71-.94.44l-2.6-1.92-1.26 1.21c-.14.14-.26.26-.53.26l.19-2.66 4.83-4.36c.21-.19-.05-.29-.32-.11L7.6 14.53l-2.55-.8c-.55-.17-.56-.55.12-.82l9.96-3.84c.46-.17.86.11.51.73z" fill="#fff"/>
+        </svg>
+      ),
+    },
+    {
+      id: "twitter", label: "Twitter", bg: "#000",
+      svg: (
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="#fff">
+          <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.253 5.622 5.911-5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+        </svg>
+      ),
+    },
+    {
+      id: "linkedin", label: "LinkedIn", bg: "#0077b5",
+      svg: (
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="#fff">
+          <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+        </svg>
+      ),
+    },
+    {
+      id: "discord", label: "Discord", bg: "#5865f2",
+      svg: (
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="#fff">
+          <path d="M20.317 4.37a19.791 19.791 0 00-4.885-1.515.074.074 0 00-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-1.25.077.077 0 00-.079-.037A19.736 19.736 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 00.031.057 19.9 19.9 0 005.993 3.03.078.078 0 00.084-.028 14.09 14.09 0 001.226-1.994.076.076 0 00-.041-.106 13.107 13.107 0 01-1.872-.892.077.077 0 01-.008-.128 10.2 10.2 0 00.372-.292.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 01.078.01c.12.098.246.198.373.292a.077.077 0 01-.006.127 12.299 12.299 0 01-1.873.892.077.077 0 00-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 00.084.028 19.839 19.839 0 006.002-3.03.077.077 0 00.032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 00-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/>
+        </svg>
+      ),
+    },
   ];
 
   const WALLETS = [
@@ -796,8 +834,8 @@ function WalletModal({ onConnect, onClose }: { onConnect: (addr: string) => void
             {SOCIAL.map(s => (
               <button key={s.id} title={`${s.label} (requires InAppWallet)`}
                 onClick={() => setError("Social login requires Thirdweb InAppWallet — connect via wallet below")}
-                style={{ width: 52, height: 52, borderRadius: 14, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: s.icon.length > 1 ? 9 : 14, fontWeight: 800, color: s.color, transition: "all 0.18s" }}>
-                {s.icon}
+                style={{ width: 52, height: 52, borderRadius: 14, background: s.bg, border: "1px solid rgba(255,255,255,0.12)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.18s", flexShrink: 0, boxShadow: "0 2px 8px rgba(0,0,0,0.3)" }}>
+                {s.svg}
               </button>
             ))}
           </div>
