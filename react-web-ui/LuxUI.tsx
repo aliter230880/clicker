@@ -1037,10 +1037,27 @@ function MiningScreen({
     loadListings();
   }, []);
 
-  // Restore wallet session: if eoaAddr was saved (user switched tabs), reload LUX balance
+  // Restore wallet session: if eoaAddr was saved (user switched tabs), reload LUX balance + miners
   useEffect(() => {
     if (!eoaAddr) return;
-    getLuxBalance(eoaAddr).then(setLuxBal).catch(() => {});
+    const addr = eoaAddr;
+    getLuxBalance(addr).then(setLuxBal).catch(() => {});
+    // Reload NFT miners list so Owned tab is populated after tab switch
+    (async () => {
+      try {
+        const tokenIds = ["4", "5", "6", "7"];
+        const balances = await Promise.all(tokenIds.map(id => getNftBalance(addr, Number(id))));
+        const nftMiners: NftMiner[] = tokenIds
+          .map((id, i) => ({ tokenId: id, count: balances[i] }))
+          .filter(n => n.count > 0);
+        if (nftMiners.length === 0) return;
+        const data = await apiPost<MinerGrp[]>(`${API_BASE}/miners`, {
+          walletAddress: addr,
+          nftMiners: JSON.stringify(nftMiners),
+        });
+        if (data !== null) setMiners(Array.isArray(data) ? data : JSON.parse(data as unknown as string));
+      } catch {}
+    })();
   }, []); // run once on mount only
 
   async function loadListings() {
