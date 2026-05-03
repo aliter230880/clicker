@@ -1267,9 +1267,9 @@ function MiningScreen({
       )}
 
       {/* ── Sub tabs ── */}
-      <div style={{ display: "flex", borderRadius: 14, overflow: "hidden", border: "1px solid rgba(0,212,255,0.15)" }}>
+      <div style={{ display: "flex", borderRadius: 14, overflow: "hidden", border: "1px solid rgba(0,212,255,0.2)" }}>
         {(["owned", "shop"] as const).map(t => (
-          <button key={t} onClick={() => setSubTab(t)} style={{ flex: 1, padding: "10px 0", fontSize: 12, fontWeight: 700, cursor: "pointer", letterSpacing: "0.04em", transition: "all 0.2s", ...(subTab === t ? { background: "linear-gradient(135deg, rgba(0,212,255,0.18), rgba(124,58,237,0.22))", color: "#00d4ff", borderRight: t === "owned" ? "1px solid rgba(0,212,255,0.15)" : "none" } : { background: "rgba(255,255,255,0.02)", color: "rgba(255,255,255,0.3)", borderRight: t === "owned" ? "1px solid rgba(255,255,255,0.06)" : "none" }) }}>
+          <button key={t} onClick={() => setSubTab(t)} style={{ flex: 1, padding: "10px 0", fontSize: 12, fontWeight: 700, cursor: "pointer", letterSpacing: "0.04em", transition: "all 0.2s", border: "none", ...(subTab === t ? { background: "linear-gradient(135deg, rgba(0,212,255,0.22), rgba(124,58,237,0.28))", color: "#00d4ff", boxShadow: "inset 0 0 20px rgba(0,212,255,0.08)", outline: "none" } : { background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.65)", outline: "none" }), ...(t === "owned" ? { borderRight: "1px solid rgba(0,212,255,0.18)" } : {}) }}>
             {t === "owned" ? "⬡ Owned NFTs" : "🛒 Marketplace"}
           </button>
         ))}
