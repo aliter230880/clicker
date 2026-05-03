@@ -453,12 +453,15 @@ $stmt->execute([json_encode($miners), $walletAddress]);
 const API_BASE: string = import.meta.env.VITE_API_BASE ?? "/__mockup/api";
 ```
 
-Все 4 API-вызова используют `API_BASE`:
+Все 7 API-вызовов используют `API_BASE`:
 ```typescript
-apiPost(`${API_BASE}/game-config`, ...)   // POST /api/game-config
-apiPost(`${API_BASE}/user`, ...)          // POST /api/user
-apiPost(`${API_BASE}/claim-daily`, ...)   // POST /api/claim-daily
-apiPost(`${API_BASE}/save-score`, ...)    // POST /api/save-score
+apiPost(`${API_BASE}/game-config`, ...)           // POST /api/game-config
+apiPost(`${API_BASE}/user`, ...)                  // POST /api/user
+apiPost(`${API_BASE}/claim-daily`, ...)           // POST /api/claim-daily
+apiPost(`${API_BASE}/save-score`, ...)            // POST /api/save-score
+apiPost(`${API_BASE}/miners`, ...)                // POST /api/miners
+apiPost(`${API_BASE}/set-miner-active`, ...)      // POST /api/set-miner-active
+apiPost(`${API_BASE}/withdrawal-miners`, ...)     // POST /api/withdrawal-miners
 ```
 
 ### Env-файлы
@@ -478,13 +481,25 @@ const STATIC = `${import.meta.env.BASE_URL}miners-config.json`;
 - `src/vite-env.d.ts` — декларирует `VITE_API_BASE` в типе `ImportMetaEnv`
 
 ### Что нужно создать на PHP-хостинге перед деплоем
-На reg.ru (или clicker.aliterra.space) создать папку `/api/` с 4 PHP-файлами:
-| PHP-файл | Заменяет | Описание |
-|---|---|---|
-| `api/game-config.php` | `get-miners-config.php` | Возвращает конфиг игры |
-| `api/user.php` | *(нет аналога)* | Создаёт/возвращает пользователя по Telegram ID |
-| `api/save-score.php` | *(нет аналога)* | Сохраняет score в `tg_clicker` |
-| `api/claim-daily.php` | *(нет аналога)* | Начисляет дневную награду с cooldown-проверкой |
+На reg.ru (или clicker.aliterra.space) создать папку `/api/` с 7 PHP-файлами:
+| PHP-файл | Описание |
+|---|---|
+| `api/game-config.php` | Возвращает конфиг игры (exchangeRate, dailyReward, minersStats) |
+| `api/user.php` | Создаёт/возвращает пользователя по Telegram ID |
+| `api/save-score.php` | Сохраняет score в `tg_clicker` |
+| `api/claim-daily.php` | Начисляет дневную награду с cooldown-проверкой (3ч) |
+| `api/miners.php` | Синхронизирует NFT-список с таблицей `tg_miners`, возвращает MinerGroup[] |
+| `api/set-miner-active.php` | Ставит/снимает майнера в Active/Idle, сбрасывает lastTimeReset |
+| `api/withdrawal-miners.php` | Считает накопленные gems по всем активным майнерам и добавляет к score |
+
+**Таблица tg_miners** (добавлена в `backend/schema.sql`):
+```sql
+CREATE TABLE tg_miners (
+    wallet_address VARCHAR(64) NOT NULL PRIMARY KEY,
+    miners LONGTEXT NOT NULL DEFAULT '[]'
+);
+-- miners column = JSON: [{tokenId, miners:[{isActive, lastTimeReset}]}]
+```
 
 ### Команды для сборки и деплоя
 ```bash
@@ -522,6 +537,90 @@ cd artifacts/mockup-sandbox && npm run build
 - Созданы `.env.development` (без VITE_API_BASE) и `.env.production` (с VITE_API_BASE=https://clicker.aliterra.space/api)
 - Создан `src/vite-env.d.ts` с TypeScript-типом для `VITE_API_BASE`
 **Результат:** Для смены бэкенда достаточно изменить одну переменную в `.env.production` — никакого ручного поиска URL в коде.
+
+---
+
+## 13-A. ИСПРАВЛЕНИЯ МАЙ 2026 (React UI — Blockchain)
+
+### Исправление 6 — Thirdweb SDK полностью удалён
+**Причина:** npm-пакет thirdweb несовместим со средой (Vite + canvas iframe).
+**Решение:** Все блокчейн-вызовы переписаны на чистые JSON-RPC запросы через `fetch`.
+- RPC URL: `https://137.rpc.thirdweb.com/<CLIENT_ID>`
+- Нет никаких npm-пакетов для блокчейна — только стандартный fetch
+- ABI encode/decode реализован вручную (HEX-строки, BigInt)
+
+### Исправление 7 — SmartWallet/AccountFactory удалены
+**Принцип:** "чем подключился — тем и пользуешься". EOA кошелёк = единственный аккаунт.
+- Удалены: `smartAddr`, `walletLoading`, AccountFactory lookup
+- Транзакции: EOA → `LUX.approve()` → EOA → `marketplace.buyFromListing()`
+- `sendTx()` использует `window.ethereum.request({ method: "eth_sendTransaction" })`
+
+### Исправление 8 — WalletModal в стиле Thirdweb "Sign In"
+**Двухшаговый флоу:**
+- Step 1: соцсети (G/DC/TG/X/Farcaster) + email + phone + passkey + "Connect a Wallet"
+- Step 2: список кошельков (MetaMask/Trust/Coinbase/Rainbow) + кнопка назад
+- Дизайн: тёмный modal, центрирован, совпадает со скриншотом-референсом
+
+### Исправление 9 — Критический баг: неверный порядок полей Listing struct
+**Проблема:** `decodeListings()` использовал НЕВЕРНЫЙ порядок полей.
+Thirdweb DirectListings V3 реальный порядок:
+```
+base+0: listingId, base+1: tokenId, base+2: quantity, base+3: pricePerToken
+base+4: startTimestamp, base+5: endTimestamp
+base+6: listingCreator, base+7: assetContract, base+8: currency
+base+9: tokenType, base+10: status, base+11: reserved
+```
+**Следствие бага:** `listingCreator` читался из поля tokenId (= 0), фильтр по адресу продавца ВСЕГДА давал 0 совпадений → листинги не показывались → цены были захардкожены → кнопка "No listing" (disabled).
+**Исправление:** Корректный порядок + фильтр `status !== 1n` (пропускать COMPLETED/CANCELLED).
+
+### Исправление 10 — Реальные цены NFT-майнеров с блокчейна
+Контракт: `0x289e25Ef58C00cE66eb726a8a4672B706e2f2691` (Polygon 137)
+Продавец: `0xB19aEe699eb4D2Af380c505E4d6A108b055916eB`
+| tokenId | Тип | Цена | qty |
+|---|---|---|---|
+| 4 | Basic | **50 LUX** | 3 |
+| 5 | Advanced | **100 LUX** | 6 |
+| 6 | Elite | **200 LUX** | 6 |
+| 7 | Pro | **500 LUX** | 3 |
+
+### Исправление 11 — Кошелёк не сбрасывается при смене таба
+**Проблема:** `MiningScreen` размонтируется при смене вкладки → весь локальный state (eoaAddr, miners, luxBal) теряется.
+**Решение:** `eoaAddr` сохраняется в `sessionStorage` при каждом изменении; при маунте восстанавливается из хранилища + перезагружается LUX-баланс.
+```typescript
+const [eoaAddr, setEoaAddr] = useState<string | null>(() =>
+  sessionStorage.getItem("lux_eoa")
+);
+function persistEoa(addr: string | null) {
+  setEoaAddr(addr);
+  if (addr) sessionStorage.setItem("lux_eoa", addr);
+  else sessionStorage.removeItem("lux_eoa");
+}
+```
+
+### Исправление 12 — Скрытие нативного скроллбара
+**Проблема:** Браузерный скроллбар в области Mining Screen выглядит не в стиле UI.
+**Решение:** CSS-класс `.lux-scroll` скрывает полосу прокрутки на всех движках:
+```css
+.lux-scroll::-webkit-scrollbar { display: none; }
+.lux-scroll { -ms-overflow-style: none; scrollbar-width: none; }
+```
+
+### Исправление 13 — Мгновенный переход в Marketplace после подключения
+**Прежнее поведение:** Переход в shop-таб только ПОСЛЕ async NFT-чека → при RPC-ошибке пользователь оставался на "owned".
+**Новое поведение:** `setSubTab("shop")` вызывается НЕМЕДЛЕННО после `persistEoa(addr)`, NFT-чек идёт в фоне. Если NFT найдены — автоматически переключается на "owned".
+
+---
+
+### Структура файлов в GitHub (собственная папка Replit Agent)
+Репозиторий: `https://github.com/aliter230880/clicker`
+Папка агента: `react-web-ui/`
+```
+react-web-ui/
+├── LuxUI.tsx          ← главный компонент (все экраны + blockchain)
+├── vite.config.ts     ← конфигурация Vite + mock API plugin
+├── package.json       ← зависимости (React, Vite, TypeScript)
+└── README.md          ← описание запуска
+```
 
 ---
 
